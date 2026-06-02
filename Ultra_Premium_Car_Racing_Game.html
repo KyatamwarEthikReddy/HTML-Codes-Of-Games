@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Ultra Premium Car Racing</title>
+<style>
+body{margin:0;overflow:hidden;background:#000;font-family:Arial}
+canvas{display:block;margin:auto;background:#222}
+#menu,#over{position:absolute;left:50%;transform:translateX(-50%);text-align:center;color:white}
+#menu{top:18%}
+#over{top:28%;display:none;background:white;color:black;padding:20px;border-radius:12px}
+#hud{position:absolute;top:10px;left:10px;color:white;display:none;font-size:18px}
+button,input,select{padding:10px;font-size:18px;margin:5px}
+</style>
+</head>
+<body>
+<div id="menu">
+<h1>🏎️ Ultra Premium Racing</h1>
+<input id="age" type="number" placeholder="Age"><br>
+<select id="carType">
+<option>Lamborghini</option>
+<option>BMW</option>
+<option>Ferrari</option>
+</select><br>
+<button onclick="startGame()">Start</button>
+</div>
+
+<div id="hud">Score:<span id="score">0</span> | Coins:<span id="coins">0</span> | Level:<span id="level">1</span> | Nitro:<span id="nitro">0</span></div>
+
+<div id="over">
+<h2>🏁 Race Finished</h2>
+<p id="final"></p>
+<button onclick="location.reload()">Replay</button>
+</div>
+
+<canvas id="game" width="450" height="750"></canvas>
+
+<script>
+const c=game,ctx=c.getContext('2d');
+let player,enemies=[],coinList=[],scoreVal=0,coinVal=0,lvl=1,speed=5,run=false;
+const keys={};
+let high=localStorage.ultraHigh||0;
+
+const ac=new(window.AudioContext||window.webkitAudioContext)();
+function sound(f,d){let o=ac.createOscillator(),g=ac.createGain();o.connect(g);g.connect(ac.destination);o.frequency.value=f;g.gain.value=.05;o.start();g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+d);o.stop(ac.currentTime+d);}
+
+document.addEventListener('keydown',e=>keys[e.key]=true);
+document.addEventListener('keyup',e=>keys[e.key]=false);
+
+function startGame(){
+ let a=parseInt(document.getElementById('age').value||12);
+ speed=a<10?4:a<16?6:8;
+ player={x:190,y:600,w:70,h:120,nitro:0,car:carType.value};
+ menu.style.display='none';
+ hud.style.display='block';
+ run=true;
+ requestAnimationFrame(loop);
+}
+
+function enemy(){enemies.push({x:20+Math.random()*350,y:-150,w:70,h:120,color:['blue','green','purple','orange'][Math.floor(Math.random()*4)]});}
+function coin(){coinList.push({x:20+Math.random()*380,y:-20});}
+
+function drawCar(x,y,color,name){
+ ctx.fillStyle=color;
+ ctx.fillRect(x,y+25,70,90);
+ ctx.fillStyle="#99d";
+ ctx.fillRect(x+12,y,46,30);
+ ctx.fillStyle="black";
+ ctx.fillRect(x+5,y+20,10,22);
+ ctx.fillRect(x+55,y+20,10,22);
+ ctx.fillRect(x+5,y+90,10,22);
+ ctx.fillRect(x+55,y+90,10,22);
+ ctx.fillStyle="white";
+ ctx.font="10px Arial";
+ ctx.fillText(name,x+10,y+65);
+}
+
+function update(){
+ if(keys.ArrowLeft) player.x-=8;
+ if(keys.ArrowRight) player.x+=8;
+
+ if(keys.ArrowUp && player.nitro>0){
+   speed=14;
+   player.nitro-=0.4;
+ }else{
+   speed=5+lvl;
+ }
+
+ player.x=Math.max(0,Math.min(380,player.x));
+
+ if(Math.random()<0.03) enemy();
+ if(Math.random()<0.015) coin();
+
+ enemies.forEach(e=>{
+   e.y+=speed;
+   if(e.y>760){
+      scoreVal+=10;
+      sound(1000,.08);
+      e.y=-150;
+      e.x=20+Math.random()*350;
+   }
+   if(player.x<e.x+e.w && player.x+player.w>e.x &&
+      player.y<e.y+e.h && player.y+player.h>e.y){
+      gameOver();
+   }
+ });
+
+ coinList.forEach(k=>{
+   k.y+=speed;
+   if(Math.abs((player.x+35)-k.x)<40 && Math.abs((player.y+60)-k.y)<40){
+      coinVal++;
+      player.nitro+=8;
+      sound(1400,.1);
+      k.y=900;
+   }
+ });
+
+ lvl=1+Math.floor(scoreVal/100);
+
+ score.textContent=scoreVal;
+ coins.textContent=coinVal;
+ level.textContent=lvl;
+ nitro.textContent=Math.floor(player.nitro);
+}
+
+let road=0;
+function draw(){
+ ctx.fillStyle=lvl%2?"#333":"#001933";
+ ctx.fillRect(0,0,450,750);
+
+ road+=speed;
+ ctx.strokeStyle="white";
+ for(let i=0;i<25;i++){
+   ctx.beginPath();
+   ctx.moveTo(225,i*40+(road%40));
+   ctx.lineTo(225,i*40+25+(road%40));
+   ctx.stroke();
+ }
+
+ drawCar(player.x,player.y,"red",player.car);
+
+ enemies.forEach(e=>drawCar(e.x,e.y,e.color,"AI"));
+
+ ctx.fillStyle="gold";
+ coinList.forEach(k=>{
+   ctx.beginPath();
+   ctx.arc(k.x,k.y,10,0,6.28);
+   ctx.fill();
+ });
+
+ ctx.fillStyle="white";
+ ctx.fillText("High Score: "+high,320,20);
+}
+
+function loop(){
+ if(!run) return;
+ update();
+ draw();
+ requestAnimationFrame(loop);
+}
+
+function gameOver(){
+ run=false;
+ sound(180,.6);
+ high=Math.max(high,scoreVal);
+ localStorage.ultraHigh=high;
+ final.innerHTML="Score: "+scoreVal+"<br>Coins: "+coinVal+"<br>High Score: "+high;
+ over.style.display="block";
+}
+
+c.addEventListener('touchstart',e=>{
+ let x=e.touches[0].clientX;
+ if(x<window.innerWidth/2) player.x-=40;
+ else player.x+=40;
+});
+</script>
+</body>
+</html>

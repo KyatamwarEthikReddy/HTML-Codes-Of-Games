@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Advanced Car Racing Game</title>
+<style>
+body{margin:0;background:#222;overflow:hidden;font-family:Arial,sans-serif;text-align:center;color:white}
+#menu{position:absolute;width:100%;top:30%}
+input,button{padding:10px;font-size:18px}
+#score{position:absolute;top:10px;left:10px;font-size:24px;display:none}
+#gameOver{display:none;position:absolute;top:35%;left:50%;transform:translateX(-50%);background:white;color:black;padding:20px;border-radius:10px}
+canvas{display:block;margin:auto;background:#555}
+</style>
+</head>
+<body>
+
+<div id="menu">
+<h1>🚗 Car Racing Game</h1>
+<p>Enter Your Age</p>
+<input type="number" id="age" min="1" max="100">
+<button onclick="startGame()">Start Game</button>
+</div>
+
+<div id="score">Score: 0</div>
+
+<div id="gameOver">
+<h2>💥 Game Over</h2>
+<p id="finalScore"></p>
+<button onclick="location.reload()">Replay</button>
+</div>
+
+<canvas id="gameCanvas" width="400" height="700"></canvas>
+
+<script>
+const canvas=document.getElementById("gameCanvas");
+const ctx=canvas.getContext("2d");
+
+let player,enemies=[],score=0,speed=4,gameRunning=false,roadOffset=0;
+
+const audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+
+let engineOsc=null;
+
+function startEngineSound(){
+ engineOsc=audioCtx.createOscillator();
+ const gain=audioCtx.createGain();
+ engineOsc.type="sawtooth";
+ engineOsc.frequency.value=90;
+ gain.gain.value=0.03;
+ engineOsc.connect(gain);
+ gain.connect(audioCtx.destination);
+ engineOsc.start();
+}
+
+function stopEngineSound(){
+ if(engineOsc){engineOsc.stop();engineOsc=null;}
+}
+
+function beep(freq,duration){
+ const osc=audioCtx.createOscillator();
+ const gain=audioCtx.createGain();
+ osc.connect(gain);
+ gain.connect(audioCtx.destination);
+ osc.frequency.value=freq;
+ gain.gain.setValueAtTime(0.1,audioCtx.currentTime);
+ gain.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+duration);
+ osc.start();
+ osc.stop(audioCtx.currentTime+duration);
+}
+
+function scoreSound(){beep(900,0.1);}
+function crashSound(){beep(180,0.5);}
+
+function startGame(){
+ let age=parseInt(document.getElementById("age").value);
+ if(!age){alert("Please Enter Age");return;}
+
+ if(age<=10) speed=3;
+ else if(age<=15) speed=5;
+ else speed=7;
+
+ document.getElementById("menu").style.display="none";
+ document.getElementById("score").style.display="block";
+
+ player={x:170,y:600,width:60,height:100};
+ enemies=[];
+ score=0;
+ gameRunning=true;
+
+ startEngineSound();
+ spawnEnemy();
+ requestAnimationFrame(gameLoop);
+}
+
+function spawnEnemy(){
+ enemies.push({x:Math.random()*320,y:-120,width:60,height:100});
+}
+
+const keys={};
+document.addEventListener("keydown",e=>keys[e.key]=true);
+document.addEventListener("keyup",e=>keys[e.key]=false);
+
+function update(){
+ if(!gameRunning) return;
+
+ if(keys["ArrowLeft"]) player.x-=8;
+ if(keys["ArrowRight"]) player.x+=8;
+
+ if(player.x<0) player.x=0;
+ if(player.x>340) player.x=340;
+
+ roadOffset+=speed;
+
+ enemies.forEach(enemy=>{
+   enemy.y+=speed;
+
+   if(enemy.y>canvas.height){
+      score++;
+      scoreSound();
+      document.getElementById("score").innerHTML="Score: "+score;
+      enemy.y=-120;
+      enemy.x=Math.random()*320;
+   }
+
+   if(player.x<enemy.x+enemy.width &&
+      player.x+player.width>enemy.x &&
+      player.y<enemy.y+enemy.height &&
+      player.y+player.height>enemy.y){
+      gameOver();
+   }
+ });
+
+ if(Math.random()<0.02) spawnEnemy();
+}
+
+function drawRoad(){
+ ctx.fillStyle="#444";
+ ctx.fillRect(0,0,400,700);
+
+ ctx.strokeStyle="white";
+ ctx.lineWidth=5;
+
+ for(let i=0;i<20;i++){
+   ctx.beginPath();
+   ctx.moveTo(200,i*50+(roadOffset%50));
+   ctx.lineTo(200,i*50+30+(roadOffset%50));
+   ctx.stroke();
+ }
+}
+
+function draw(){
+ drawRoad();
+
+ // Player car
+ ctx.fillStyle="#ff0000";
+ ctx.fillRect(player.x,player.y+20,60,80);
+ ctx.fillStyle="#cc0000";
+ ctx.fillRect(player.x+10,player.y,40,30);
+ ctx.fillStyle="#87CEEB";
+ ctx.fillRect(player.x+15,player.y+5,30,15);
+ ctx.fillStyle="black";
+ ctx.beginPath();
+ ctx.arc(player.x+8,player.y+25,6,0,Math.PI*2);
+ ctx.arc(player.x+52,player.y+25,6,0,Math.PI*2);
+ ctx.arc(player.x+8,player.y+85,6,0,Math.PI*2);
+ ctx.arc(player.x+52,player.y+85,6,0,Math.PI*2);
+ ctx.fill();
+
+ enemies.forEach(enemy=>{
+   ctx.fillStyle="#0066ff";
+   ctx.fillRect(enemy.x,enemy.y+20,60,80);
+   ctx.fillStyle="#0044aa";
+   ctx.fillRect(enemy.x+10,enemy.y,40,30);
+   ctx.fillStyle="#87CEEB";
+   ctx.fillRect(enemy.x+15,enemy.y+5,30,15);
+   ctx.fillStyle="black";
+   ctx.beginPath();
+   ctx.arc(enemy.x+8,enemy.y+25,6,0,Math.PI*2);
+   ctx.arc(enemy.x+52,enemy.y+25,6,0,Math.PI*2);
+   ctx.arc(enemy.x+8,enemy.y+85,6,0,Math.PI*2);
+   ctx.arc(enemy.x+52,enemy.y+85,6,0,Math.PI*2);
+   ctx.fill();
+ });
+}
+
+function gameLoop(){
+ update();
+ draw();
+ if(gameRunning) requestAnimationFrame(gameLoop);
+}
+
+function gameOver(){
+ gameRunning=false;
+ stopEngineSound();
+ crashSound();
+ document.getElementById("finalScore").innerHTML="Final Score: "+score;
+ document.getElementById("gameOver").style.display="block";
+}
+</script>
+</body>
+</html>
